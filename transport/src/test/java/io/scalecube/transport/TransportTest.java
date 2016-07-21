@@ -1,7 +1,11 @@
 package io.scalecube.transport;
 
 import static com.google.common.base.Throwables.propagate;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import io.scalecube.testlib.BaseTest;
 
@@ -44,6 +48,22 @@ public class TransportTest extends BaseTest {
   public void tearDown() throws Exception {
     destroyTransport(client);
     destroyTransport(server);
+  }
+
+  @Test
+  public void testUnresolvedHostConnection() throws Exception {
+    client = createTransport(clientEndpoint());
+    // create transport with wrong host
+    SettableFuture<Void> sendPromise0 = SettableFuture.create();
+    client.send(TransportEndpoint.from("wronghost:49255:server"), new Message("q"), sendPromise0);
+    try {
+      sendPromise0.get(3, TimeUnit.SECONDS);
+      fail();
+    } catch (ExecutionException e) {
+      Throwable cause = e.getCause();
+      assertNotNull(cause);
+      assertAmongExpectedClasses(cause.getClass(), TransportClosedException.class);
+    }
   }
 
   @Test
@@ -564,7 +584,8 @@ public class TransportTest extends BaseTest {
     }
   }
 
-  private Callable<Void> sender(final int id, final Transport client, final TransportEndpoint endpoint, final int total) {
+  private Callable<Void> sender(final int id, final Transport client, final TransportEndpoint endpoint,
+      final int total) {
     return new Callable<Void>() {
       public Void call() throws Exception {
         for (int j = 0; j < total; j++) {
