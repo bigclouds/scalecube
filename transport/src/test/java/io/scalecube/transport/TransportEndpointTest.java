@@ -1,6 +1,7 @@
 package io.scalecube.transport;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import io.scalecube.transport.utils.IpAddressResolver;
 
@@ -21,7 +22,7 @@ public class TransportEndpointTest {
     assertEquals(IpAddressResolver.resolveIpAddress().getHostAddress() + ":5810" + ":0A1B2C3", te2.getString());
 
     assertEquals(te1, te2);
-    assertEquals(te1.hostname(), te2.hostname());
+    assertEquals(te1.host(), te2.host());
     assertEquals(te1.port(), te2.port());
     assertEquals(te1.socketAddress(), te2.socketAddress());
   }
@@ -31,6 +32,7 @@ public class TransportEndpointTest {
     TransportEndpoint te = TransportEndpoint.from("host:1111:0A1B2C3");
     assertEquals("0A1B2C3", te.id());
     assertEquals("host:1111:0A1B2C3", te.getString());
+    assertTrue(te.socketAddress().isUnresolved());
   }
 
   @Test
@@ -38,5 +40,6 @@ public class TransportEndpointTest {
     InetSocketAddress sa = TransportEndpoint.parseSocketAddress("host:1111");
     assertEquals("host", sa.getHostName());
     assertEquals(1111, sa.getPort());
+    assertTrue(sa.isUnresolved());
   }
 }

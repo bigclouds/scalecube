@@ -21,7 +21,7 @@ public class FutureUtils {
    * @param promise guava future; can be null
    * @return same {@code promise} passed as parameter; just for convenience
    */
-  public static <T> ListenableFuture<T> listenableFuture(Future<T> future, @Nullable final SettableFuture<T> promise) {
+  public static <T> ListenableFuture<T> compose(Future<T> future, @Nullable final SettableFuture<T> promise) {
     if (promise != null) {
       future.addListener(new GenericFutureListener<Future<T>>() {
         @Override
@@ -43,7 +43,7 @@ public class FutureUtils {
    * @param future netty future
    * @return newly created {@code listenableFuture}
    */
-  public static <T> ListenableFuture<T> listenableFuture(Future<T> future) {
+  public static <T> ListenableFuture<T> compose(Future<T> future) {
     final SettableFuture<T> promise = SettableFuture.create();
     future.addListener(new GenericFutureListener<Future<T>>() {
       @Override

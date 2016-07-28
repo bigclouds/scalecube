@@ -8,7 +8,6 @@ import io.scalecube.transport.memoizer.Memoizer;
 import io.scalecube.transport.utils.FutureUtils;
 
 import com.google.common.base.Function;
-import com.google.common.net.InetAddresses;
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.FutureFallback;
@@ -183,8 +182,7 @@ public final class Transport implements ITransportSpi, ITransport {
       }
     });
 
-    InetAddress inetAddress = InetAddresses.forString(localEndpoint.hostname()); // get inetAddress w/o DNS lookup
-    ChannelFuture bindFuture = server.bind(new InetSocketAddress(inetAddress, localEndpoint.port())); // bind
+    ChannelFuture bindFuture = server.bind(localEndpoint.port());
     final SettableFuture<Void> result = SettableFuture.create();
     bindFuture.addListener(new ChannelFutureListener() {
       @Override
@@ -192,11 +190,11 @@ public final class Transport implements ITransportSpi, ITransport {
         if (channelFuture.isSuccess()) {
           serverChannel = (ServerChannel) channelFuture.channel();
           LOGGER.info("Bound transport endpoint: {} at {}:{}",
-              localEndpoint.id(), localEndpoint.hostname(), localEndpoint.port());
+              localEndpoint.id(), localEndpoint.host(), localEndpoint.port());
           result.set(null);
         } else {
           LOGGER.error("Failed to bind transport endpoint: {} at {}:{}, cause: {}",
-              localEndpoint.id(), localEndpoint.hostname(), localEndpoint.port(), channelFuture.cause());
+              localEndpoint.id(), localEndpoint.host(), localEndpoint.port(), channelFuture.cause());
           result.setException(channelFuture.cause());
         }
       }
@@ -291,7 +289,7 @@ public final class Transport implements ITransportSpi, ITransport {
       }
     }
     if (serverChannel != null) {
-      FutureUtils.listenableFuture(serverChannel.close(), promise);
+      FutureUtils.compose(serverChannel.close(), promise);
     }
   }
 
@@ -333,8 +331,6 @@ public final class Transport implements ITransportSpi, ITransport {
 
   private TransportChannel getOrConnect(@CheckForNull InetSocketAddress socketAddress) {
     checkArgument(socketAddress != null);
-    checkArgument(socketAddress.isUnresolved());
-
     return connectedChannels.get(socketAddress, new Computable<InetSocketAddress, TransportChannel>() {
       @Override
       public TransportChannel compute(final InetSocketAddress socketAddress) {
@@ -343,7 +339,7 @@ public final class Transport implements ITransportSpi, ITransport {
 
         // register channel
         final ListenableFuture<Void> registerFuture =
-            Futures.withFallback(FutureUtils.listenableFuture(eventLoop.register(channel)), new FutureFallback<Void>() {
+            Futures.withFallback(FutureUtils.compose(eventLoop.register(channel)), new FutureFallback<Void>() {
               @Override
               public ListenableFuture<Void> create(Throwable cause) {
                 LOGGER.error("Failed to register channel, cause: {}", new Object[] {cause});
@@ -363,7 +359,7 @@ public final class Transport implements ITransportSpi, ITransport {
             new FutureFallback<InetSocketAddress>() {
               @Override
               public ListenableFuture<InetSocketAddress> create(Throwable cause) throws Exception {
-                LOGGER.error("Failed to resolve inet address for hostname: {}, cause: {}",
+                LOGGER.error("Failed to resolve inet address for host: {}, cause: {}",
                     socketAddress.getHostName(), cause);
                 return Futures.immediateFailedFuture(cause);
               }
@@ -383,7 +379,6 @@ public final class Transport implements ITransportSpi, ITransport {
             transportChannel.close();
           }
         });
-
         return transportChannel;
       }
     });
@@ -412,7 +407,7 @@ public final class Transport implements ITransportSpi, ITransport {
 
   private ListenableFuture<InetSocketAddress> resolveAddress(final InetSocketAddress socketAddress,
       EventLoop eventLoop) {
-    return FutureUtils.listenableFuture(eventLoop.submit(new Callable<InetSocketAddress>() {
+    return FutureUtils.compose(eventLoop.submit(new Callable<InetSocketAddress>() {
       @Override
       public InetSocketAddress call() throws Exception {
         return new InetSocketAddress(InetAddress.getByName(socketAddress.getHostName()), socketAddress.getPort());

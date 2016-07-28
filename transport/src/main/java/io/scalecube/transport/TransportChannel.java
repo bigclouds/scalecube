@@ -125,7 +125,7 @@ final class TransportChannel implements ITransportChannel {
     if (promise != null && getCause() != null) {
       promise.setException(getCause());
     } else {
-      FutureUtils.listenableFuture(channel.writeAndFlush(message), promise);
+      FutureUtils.compose(channel.writeAndFlush(message), promise);
     }
   }
 
@@ -146,7 +146,7 @@ final class TransportChannel implements ITransportChannel {
     this.cause.compareAndSet(null, cause != null ? cause : new TransportClosedException());
     status.set(CLOSED);
     closeCallback.call(this);
-    FutureUtils.listenableFuture(channel.close(), promise);
+    FutureUtils.compose(channel.close(), promise);
     LOGGER.info("Closed {}", this);
   }
 

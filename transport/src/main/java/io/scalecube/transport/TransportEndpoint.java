@@ -19,11 +19,11 @@ import javax.annotation.concurrent.Immutable;
 @Immutable
 public final class TransportEndpoint {
   /**
-   * Regexp pattern for {@code hostname:port:id}.
+   * Regexp pattern for {@code [host:]port:id}.
    */
   private static final Pattern TRASNPORT_ENDPOINT_ADDRESS_FORMAT = Pattern.compile("(^.*?):(\\d+):(.*$)");
   /**
-   * Regexp pattern for {@code hostname:port}.
+   * Regexp pattern for {@code host:port}.
    */
   private static final Pattern SOCKET_ADDRESS_FORMAT = Pattern.compile("(^.*):(\\d+$)");
 
@@ -33,17 +33,21 @@ public final class TransportEndpoint {
   private String id;
 
   /**
-   * Socket address of the endpoint. <b>NOTE:</b> this field isn't serializable.
+   * Socket address of the endpoint ({@link InetSocketAddress#isUnresolved()} -> {@code true}, i.e. only
+   * {@link InetSocketAddress#getHostName()}, {@link InetSocketAddress#getPort()} will be accessible). <b>NOTE:</b> this
+   * field isn't serializable.
    */
   private transient volatile InetSocketAddress socketAddress;
 
   /**
-   * Host name. <b>NOTE:</b> {@link #socketAddress}'s hostname is eq to value of this field.
+   * Host address. <b>NOTE:</b> {@link #socketAddress}'s hostname ({@link InetSocketAddress#getHostName()}) is eq to
+   * value of this field.
    */
-  private String hostname;
+  private String host;
 
   /**
-   * Port. <b>NOTE:</b> {@link #socketAddress}'s port is eq to value of this field.
+   * Port. <b>NOTE:</b> {@link #socketAddress}'s port ({@link InetSocketAddress#getPort()}) is eq to value of this
+   * field.
    */
   private int port;
 
@@ -51,10 +55,11 @@ public final class TransportEndpoint {
 
   private TransportEndpoint(@CheckForNull String id, @CheckForNull InetSocketAddress socketAddress) {
     checkArgument(id != null);
+    checkArgument(!id.isEmpty());
     checkArgument(socketAddress != null);
     this.id = id;
     this.socketAddress = socketAddress;
-    this.hostname = socketAddress.getHostName();
+    this.host = socketAddress.getHostName();
     this.port = socketAddress.getPort();
   }
 
@@ -63,7 +68,7 @@ public final class TransportEndpoint {
    * {@code localhost}, {@code 0.0.0.0} or omitted et al; when localhost case detected then real local ip address would
    * be resolved.
    *
-   * @param input must come in form {@code hostname:port[:id]}
+   * @param input must come in form {@code host:port[:id]}
    */
   public static TransportEndpoint from(@CheckForNull String input) {
     checkArgument(input != null);
@@ -86,27 +91,24 @@ public final class TransportEndpoint {
   }
 
   /**
-   * Creates transport endpoint from endpoint id and address object.
+   * Creates local transport endpoint from endpoint id and port. <b>NOTE:</b> hostname of a transport will be set to
+   * node's IP4 address.
    *
    * @param id given endpoint id (or <i>incarnationId</i>)
-   * @param socketAddress a socket address
+   * @param port a port to bind to.
    */
-  public static TransportEndpoint from(String id, InetSocketAddress socketAddress) {
-    return new TransportEndpoint(id, socketAddress);
+  public static TransportEndpoint createLocal(String id, int port) {
+    return new TransportEndpoint(id, InetSocketAddress.createUnresolved(resolveLocalIpAddress(), port));
   }
 
   /**
-   * @return local socket address by given port.
-   */
-  public static InetSocketAddress localSocketAddress(int port) {
-    return InetSocketAddress.createUnresolved(resolveLocalIpAddress(), port);
-  }
-
-  /**
-   * Parses given string to get socketAddress. For localhost variant host may come in: {@code 127.0.0.1},
-   * {@code localhost} or {@code 0.0.0.0}; when localhost case detected then real local ip address would be resolved.
+   * Parses given string to get socketAddress (<b>NOTE:</b> not attemp will be made to resolve
+   * {@link java.net.InetAddress}) object. For localhost variant host may come in: {@code 127.0.0.1}, {@code localhost}
+   * or {@code 0.0.0.0}; when localhost case detected then real local ip address would be resolved.
    *
-   * @param input in a form {@code hostname:port}
+   * @param input in a form {@code host:port}
+   * @return unresolved socketAddress; only {@link InetSocketAddress#getHostName()}, {@link InetSocketAddress#getPort()}
+   *         will be accessible.
    */
   public static InetSocketAddress parseSocketAddress(@CheckForNull String input) {
     checkArgument(input != null);
@@ -127,28 +129,40 @@ public final class TransportEndpoint {
     return InetSocketAddress.createUnresolved(host, port);
   }
 
+  /**
+   * See {@link #host}.
+   */
   @Nonnull
-  public String hostname() {
-    return hostname;
+  public String host() {
+    return host;
   }
 
+  /**
+   * See {@link #port}.
+   */
   public int port() {
     return port;
   }
 
+  /**
+   * See {@link #id}.
+   */
   @Nonnull
   public String id() {
     return id;
   }
 
+  /**
+   * See {@link #socketAddress}.
+   */
   @Nonnull
   public InetSocketAddress socketAddress() {
-    return socketAddress != null ? socketAddress : (socketAddress = InetSocketAddress.createUnresolved(hostname, port));
+    return socketAddress != null ? socketAddress : (socketAddress = InetSocketAddress.createUnresolved(host, port));
   }
 
   @Nonnull
   public String getString() {
-    return hostname + ":" + port + ":" + id;
+    return host + ":" + port + ":" + id;
   }
 
   private static boolean isLocalhost(String host) {
@@ -172,12 +186,12 @@ public final class TransportEndpoint {
       return false;
     }
     TransportEndpoint that = (TransportEndpoint) other;
-    return Objects.equals(id, that.id) && Objects.equals(hostname, that.hostname) && Objects.equals(port, that.port);
+    return Objects.equals(id, that.id) && Objects.equals(host, that.host) && Objects.equals(port, that.port);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(id, hostname, port);
+    return Objects.hash(id, host, port);
   }
 
   @Override

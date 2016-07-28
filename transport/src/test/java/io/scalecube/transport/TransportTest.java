@@ -4,12 +4,15 @@ import static com.google.common.base.Throwables.propagate;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import io.scalecube.testlib.BaseTest;
+import io.scalecube.transport.utils.IpAddressResolver;
 
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -25,6 +28,8 @@ import rx.Subscriber;
 import rx.functions.Action1;
 
 import java.net.ConnectException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +53,46 @@ public class TransportTest extends BaseTest {
   public void tearDown() throws Exception {
     destroyTransport(client);
     destroyTransport(server);
+  }
+
+  @Test
+  public void testConnectByHostnameThenConnectByRawIp() throws Exception {
+    TransportEndpoint clientEndpoint = clientEndpoint();
+    TransportEndpoint serverEndpoint = serverEndpoint();
+
+    client = createTransport(clientEndpoint);
+    server = createTransport(serverEndpoint);
+
+    String hostName = InetAddress.getLocalHost().getHostName();
+    ListenableFuture<TransportEndpoint> connectByHostname = client.connect(new InetSocketAddress(hostName, 49255));
+    TransportEndpoint transportEndpointByHostname = connectByHostname.get(3, TimeUnit.SECONDS);
+
+    String ipAddress = IpAddressResolver.resolveIpAddress().getHostAddress();
+    ListenableFuture<TransportEndpoint> connectByIp = client.connect(new InetSocketAddress(ipAddress, 49255));
+    TransportEndpoint transportEndpointByIp = connectByIp.get(3, TimeUnit.SECONDS);
+
+    assertSame(transportEndpointByHostname, transportEndpointByIp);
+  }
+
+  @Test
+  public void testConnectByHostnameThenConnectByRawIpWhenInetAddressIsUnresolved() throws Exception {
+    TransportEndpoint clientEndpoint = clientEndpoint();
+    TransportEndpoint serverEndpoint = serverEndpoint();
+
+    client = createTransport(clientEndpoint);
+    server = createTransport(serverEndpoint);
+
+    String hostName = InetAddress.getLocalHost().getHostName();
+    ListenableFuture<TransportEndpoint> connectByHostname =
+        client.connect(InetSocketAddress.createUnresolved(hostName, 49255));
+    TransportEndpoint transportEndpointByHostname = connectByHostname.get(3, TimeUnit.SECONDS);
+
+    String ipAddress = IpAddressResolver.resolveIpAddress().getHostAddress();
+    ListenableFuture<TransportEndpoint> connectByIp =
+        client.connect(InetSocketAddress.createUnresolved(ipAddress, 49255));
+    TransportEndpoint transportEndpointByIp = connectByIp.get(3, TimeUnit.SECONDS);
+
+    assertSame(transportEndpointByHostname, transportEndpointByIp);
   }
 
   @Test
